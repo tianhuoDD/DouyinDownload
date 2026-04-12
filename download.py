@@ -1,0 +1,325 @@
+import os
+import sys
+import zipfile
+import subprocess
+import tempfile
+import asyncio
+
+# ── 把项目根目录加入模块搜索路径 ──────────────────────────────────────────────
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+import aiofiles
+import httpx
+import yaml
+
+
+# 从配置文件中获取抖音的请求头
+async def get_douyin_headers():
+    douyin_config = config["TokenManager"]["douyin"]
+    kwargs = {
+        "headers": {
+            "Accept-Language": douyin_config["headers"]["Accept-Language"],
+            "User-Agent": douyin_config["headers"]["User-Agent"],
+            "Referer": douyin_config["headers"]["Referer"],
+            "Cookie": douyin_config["headers"]["Cookie"],
+        },
+        "proxies": {"http://": douyin_config["proxies"]["http"], "https://": douyin_config["proxies"]["https"]},
+    }
+    return kwargs
+# ── 替代 FastAPI Request 的轻量封装 ─────────────────────────────────────────
+class MockRequest:
+    """模拟 FastAPI Request，仅保留 download_standalone 所需的两个方法。"""
+
+    def __init__(self, url_path: str = "/download", query_params: dict = None):
+        self.url = type("URL", (), {"path": url_path})()
+        self.query_params = query_params or {}
+        self._disconnected = False
+
+    async def is_disconnected(self) -> bool:
+        return self._disconnected
+
+
+# ── 读取配置文件（TokenManager 部分） ────────────────────────────────────────
+config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+with open(config_path, "r", encoding="utf-8") as _f:
+    config = yaml.safe_load(_f)
+
+# ── API 配置（config.yaml 中没有 API 段，直接在此处定义） ────────────────────
+config["API"] = {
+    "Download_Switch": True,           # 是否启用下载
+    "Download_File_Prefix": "DY_",     # 文件名前缀，改为 "" 表示不加前缀
+    "Download_Path": "./downloads",    # 下载保存目录
+}
+
+
+# ── 工具函数（与原版保持一致） ────────────────────────────────────────────────
+async def fetch_data(url: str, headers: dict = None):
+    headers = (
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/91.0.4472.124 Safari/537.36"
+            )
+        }
+        if headers is None
+        else headers.get("headers")
+    )
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        return response
+
+
+async def fetch_data_stream(
+    url: str,
+    request: MockRequest,
+    headers: dict = None,
+    file_path: str = None,
+) -> bool:
+    headers = (
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/91.0.4472.124 Safari/537.36"
+            )
+        }
+        if headers is None
+        else headers.get("headers")
+    )
+    async with httpx.AsyncClient() as client:
+        async with client.stream("GET", url, headers=headers) as response:
+            response.raise_for_status()
+            async with aiofiles.open(file_path, "wb") as out_file:
+                async for chunk in response.aiter_bytes():
+                    if await request.is_disconnected():
+                        print("客户端断开连接，清理未完成的文件")
+                        await out_file.close()
+                        os.remove(file_path)
+                        return False
+                    await out_file.write(chunk)
+    return True
+
+
+async def merge_bilibili_video_audio(
+    video_url: str,
+    audio_url: str,
+    request: MockRequest,
+    output_path: str,
+    headers: dict,
+) -> bool:
+    """下载并合并 Bilibili 的视频流和音频流。"""
+    video_temp_path = audio_temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".m4v", delete=False) as vt:
+            video_temp_path = vt.name
+        with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as at:
+            audio_temp_path = at.name
+
+        video_success = await fetch_data_stream(
+            video_url, request, headers={"headers": headers}, file_path=video_temp_path
+        )
+        audio_success = await fetch_data_stream(
+            audio_url, request, headers={"headers": headers}, file_path=audio_temp_path
+        )
+
+        if not video_success or not audio_success:
+            print("Failed to download video or audio stream")
+            return False
+
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-i", video_temp_path,
+            "-i", audio_temp_path,
+            "-c:v", "copy",
+            "-c:a", "copy",
+            "-f", "mp4",
+            output_path,
+        ]
+        print(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+        print(f"FFmpeg return code: {result.returncode}")
+        if result.stderr:
+            print(f"FFmpeg stderr: {result.stderr}")
+        if result.stdout:
+            print(f"FFmpeg stdout: {result.stdout}")
+        return result.returncode == 0
+
+    except Exception as e:
+        print(f"Error merging video and audio: {e}")
+        return False
+    finally:
+        for p in (video_temp_path, audio_temp_path):
+            if p:
+                try:
+                    os.unlink(p)
+                except Exception:
+                    pass
+
+
+# ── HybridCrawler（延迟导入，避免在不需要时引入依赖） ──────────────────────
+def _get_crawler():
+    from core.api.hybrid_crawler import HybridCrawler  # noqa: PLC0415
+    return HybridCrawler()
+
+
+# ── 核心下载函数（原 router 端点的逻辑，完全解耦） ────────────────────────────
+async def download_file(
+    url: str,
+    prefix: bool = True,
+    with_watermark: bool = False,
+    request: MockRequest = None,
+) -> str | None:
+    """
+    下载抖音 | TikTok | Bilibili 视频 / 图片。
+
+    Parameters
+    ----------
+    url          : 视频或图片的分享链接
+    prefix       : 是否为输出文件名添加配置文件中定义的前缀
+    with_watermark: 是否下载带水印版本（Bilibili 无效）
+    request      : MockRequest 实例；为 None 时自动创建
+
+    Returns
+    -------
+    成功时返回本地文件路径（str），失败时返回 None。
+    """
+    if request is None:
+        request = MockRequest(query_params={"url": url})
+
+    # ── 检查开关 ────────────────────────────────────────────────────────────
+    if not config["API"]["Download_Switch"]:
+        print("Download endpoint is disabled in the configuration file.")
+        return None
+
+    # ── 解析数据 ─────────────────────────────────────────────────────────────
+    crawler = _get_crawler()
+    try:
+        data = await crawler.hybrid_parsing_single_video(url, minimal=True)
+    except Exception as e:
+        print(f"解析失败: {e}")
+        return None
+
+    # ── 下载逻辑 ─────────────────────────────────────────────────────────────
+    try:
+        data_type = data.get("type")
+        platform = data.get("platform")
+        video_id = data.get("video_id")
+        file_prefix = config["API"]["Download_File_Prefix"] if prefix else ""
+        download_path = os.path.join(
+            config["API"]["Download_Path"], f"{platform}_{data_type}"
+        )
+        os.makedirs(download_path, exist_ok=True)
+
+        # ── 视频 ────────────────────────────────────────────────────────────
+        if data_type == "video":
+            suffix = "_watermark.mp4" if with_watermark else ".mp4"
+            file_name = f"{file_prefix}{platform}_{video_id}{suffix}"
+            file_path = os.path.join(download_path, file_name)
+
+            if os.path.exists(file_path):
+                print(f"文件已存在，直接返回: {file_path}")
+                return file_path
+
+            __headers = await get_douyin_headers()
+
+            if platform == "bilibili":
+                video_data = data.get("video_data", {})
+                video_url = (
+                    video_data.get("nwm_video_url_HQ")
+                    if not with_watermark
+                    else video_data.get("wm_video_url_HQ")
+                )
+                audio_url = video_data.get("audio_url")
+                if not video_url or not audio_url:
+                    print("无法获取 Bilibili 视频或音频地址")
+                    return None
+
+                success = await merge_bilibili_video_audio(
+                    video_url,
+                    audio_url,
+                    request,
+                    file_path,
+                    __headers.get("headers"),
+                )
+            else:
+                video_url = (
+                    data["video_data"]["nwm_video_url_HQ"]
+                    if not with_watermark
+                    else data["video_data"]["wm_video_url_HQ"]
+                )
+                success = await fetch_data_stream(
+                    video_url, request, headers=__headers, file_path=file_path
+                )
+
+            if not success:
+                print("下载视频失败")
+                return None
+
+            print(f"视频已保存到: {file_path}")
+            return file_path
+
+        # ── 图片（打包为 zip） ───────────────────────────────────────────────
+        elif data_type == "image":
+            wm_tag = "_watermark" if with_watermark else ""
+            zip_file_name = f"{file_prefix}{platform}_{video_id}_images{wm_tag}.zip"
+            zip_file_path = os.path.join(download_path, zip_file_name)
+
+            if os.path.exists(zip_file_path):
+                print(f"压缩包已存在，直接返回: {zip_file_path}")
+                return zip_file_path
+
+            urls = (
+                data["image_data"]["no_watermark_image_list"]
+                if not with_watermark
+                else data["image_data"]["watermark_image_list"]
+            )
+            image_file_list = []
+            for idx, img_url in enumerate(urls):
+                response = await fetch_data(img_url)
+                content_type = response.headers.get("content-type", "image/jpeg")
+                file_format = content_type.split("/")[1]
+                img_name = f"{file_prefix}{platform}_{video_id}_{idx + 1}{wm_tag}.{file_format}"
+                img_path = os.path.join(download_path, img_name)
+                image_file_list.append(img_path)
+                async with aiofiles.open(img_path, "wb") as out_file:
+                    await out_file.write(response.content)
+
+            with zipfile.ZipFile(zip_file_path, "w") as zf:
+                for img_path in image_file_list:
+                    zf.write(img_path, os.path.basename(img_path))
+
+            print(f"图片压缩包已保存到: {zip_file_path}")
+            return zip_file_path
+
+        else:
+            print(f"不支持的数据类型: {data_type}")
+            return None
+
+    except Exception as e:
+        print(f"下载过程中出现异常: {e}")
+        return None
+
+
+# ── 入口 ─────────────────────────────────────────────────────────────────────
+async def main():
+    # 在这里修改目标 URL 和参数
+    target_url = "https://www.douyin.com/video/7616545853347482931"
+
+    result = await download_file(
+        url=target_url,
+        prefix=True,
+        with_watermark=False,
+    )
+
+    if result:
+        print(f"\n✓ 下载成功: {result}")
+    else:
+        print("\n✗ 下载失败")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

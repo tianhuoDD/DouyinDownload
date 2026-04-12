@@ -2,3 +2,6 @@ config.yaml
 prompt.md
 .idea/
 logs/
+downloads/
+__pycache__/
+*.pyc
