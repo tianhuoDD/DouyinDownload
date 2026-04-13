@@ -27,8 +27,8 @@ import json
 import asyncio
 import re
 from httpx import Response
-from core.common.logger import logger
-from core.common.api_exceptions import (
+from douyin_core.common.logger import logger
+from douyin_core.common.api_exceptions import (
     APIError,
     APIConnectionError,
     APIResponseError,

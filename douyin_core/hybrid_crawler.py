@@ -20,7 +20,7 @@
 # - 删除了除douyin外的其他平台代码以及一些注释
 # ==============================================================================
 import asyncio
-from core.web_crawler import DouyinWebCrawler
+from douyin_core.web_crawler import DouyinWebCrawler
 
 class HybridCrawler:
     async def hybrid_parsing_single_video(self, url: str, minimal: bool = False):

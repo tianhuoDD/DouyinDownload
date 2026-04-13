@@ -21,10 +21,10 @@
 # - 删除了一些没有使用的方法
 # ==============================================================================
 from urllib.parse import urlencode
-from core.models import PostDetail
-from core.base_crawler import BaseCrawler
-from core.ab import BogusManager
-from core.common.utils import AwemeIdFetcher
+from douyin_core.models import PostDetail
+from douyin_core.base_crawler import BaseCrawler
+from douyin_core.ab import BogusManager
+from douyin_core.common.utils import AwemeIdFetcher
 from config.settings import CONFIG
 
 # 配置文件路径
