@@ -19,8 +19,8 @@
 # Changes made:
 # - 删除了其他的公用utils
 # ==============================================================================
-from .common.abogus import ABogus as AB
 from urllib.parse import quote
+from core.common.abogus import ABogus as AB
 
 class BogusManager:
     # 字典方法生成A-Bogus参数，感谢 @JoeanAmier 提供的纯Python版本算法。

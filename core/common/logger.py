@@ -20,11 +20,9 @@ import threading
 import time
 import logging
 import datetime
-
 from pathlib import Path
 from rich.logging import RichHandler
 from logging.handlers import TimedRotatingFileHandler
-
 
 class Singleton(type):
     _instances = {}  # 存储实例的字典

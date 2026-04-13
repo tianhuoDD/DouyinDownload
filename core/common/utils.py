@@ -20,57 +20,22 @@
 # - 重构代码结构，优化页面逻辑，移除冗余方法以提升可读性与可维护性
 # - 适配 httpx 0.28+ 版本变更，移除已废弃的 proxies 参数
 # - 使用 transport / mounts 机制重写代理逻辑
+# - 优化config.yaml索引
 # ==============================================================================
 # 方法
 import datetime
 import random
 import re
 import httpx
-from .api_exceptions import (
-    APIConnectionError,
-    APIResponseError,
-    APIUnauthorizedError,
-    APINotFoundError,
-)
-import asyncio
-import os
-import yaml
-from core.common.logger import logger
 import json
-from typing import Union, List
-
+from config.settings import CONFIG
+from core.common.logger import logger
+from core.common.api_exceptions import (
+    APIConnectionError,
+    APIResponseError
+)
 # 配置文件路径
-# Read the configuration file
-path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-
-# 读取配置文件
-with open(f"{path}/config.yaml", "r", encoding="utf-8") as f:
-    config = yaml.safe_load(f)
-
-
-def extract_valid_urls(inputs: Union[str, List[str]]) -> Union[str, List[str], None]:
-    """从输入中提取有效的URL (Extract valid URLs from input)
-    Args:
-        inputs (Union[str, list[str]]): 输入的字符串或字符串列表 (Input string or list of strings)
-    Returns:
-        Union[str, list[str]]: 提取出的有效URL或URL列表 (Extracted valid URL or list of URLs)
-    """
-    url_pattern = re.compile(r"https?://\S+")
-
-    # 如果输入是单个字符串
-    if isinstance(inputs, str):
-        match = url_pattern.search(inputs)
-        return match.group(0) if match else None
-
-    # 如果输入是字符串列表
-    elif isinstance(inputs, list):
-        valid_urls = []
-        for input_str in inputs:
-            matches = url_pattern.findall(input_str)
-            if matches:
-                valid_urls.extend(matches)
-        return valid_urls
-
+config = CONFIG
 
 def gen_random_str(randomlength: int) -> str:
     """
@@ -165,45 +130,6 @@ class TokenManager:
         """生成随机msToken (Generate random msToken)"""
         return gen_random_str(126) + "=="
 
-    @classmethod
-    def gen_ttwid(cls) -> str:
-        """
-        生成请求必带的ttwid
-        (Generate the essential ttwid for requests)
-        """
-        transport = httpx.HTTPTransport(retries=5)
-        with httpx.Client(transport=transport) as client:
-            try:
-                response = client.post(
-                    cls.ttwid_conf["url"], content=cls.ttwid_conf["data"]
-                )
-                response.raise_for_status()
-
-                ttwid = str(httpx.Cookies(response.cookies).get("ttwid"))
-                return ttwid
-
-            except httpx.RequestError as exc:
-                # 捕获所有与 httpx 请求相关的异常情况 (Captures all httpx request-related exceptions)
-                raise APIConnectionError(
-                    "请求端点失败，请检查当前网络环境。 链接：{0}，代理：{1}，异常类名：{2}，异常详细信息：{3}"
-                    .format(cls.ttwid_conf["url"], cls.proxies, cls.__name__, exc)
-                )
-
-            except httpx.HTTPStatusError as e:
-                # 捕获 httpx 的状态代码错误 (captures specific status code errors from httpx)
-                if e.response.status_code == 401:
-                    raise APIUnauthorizedError(
-                        "参数验证失败，请更新 Douyin_TikTok_Download_API 配置文件中的 {0}，以匹配 {1} 新规则"
-                        .format("ttwid", "douyin")
-                    )
-                elif e.response.status_code == 404:
-                    raise APINotFoundError("ttwid无法找到API端点")
-                else:
-                    raise APIResponseError("链接：{0}，状态码 {1}：{2} ".format(
-                        e.response.url, e.response.status_code, e.response.text
-                    )
-                    )
-
 class AwemeIdFetcher:
     # 预编译正则表达式
     _DOUYIN_VIDEO_URL_PATTERN = re.compile(r"video/([^/?]*)")
@@ -251,25 +177,3 @@ class AwemeIdFetcher:
                 raise APIResponseError(
                     f"链接：{e.response.url}，状态码 {e.response.status_code}：{e.response.text}"
                 )
-
-    @classmethod
-    async def get_all_aweme_id(cls, urls: list) -> list:
-        """
-        获取视频aweme_id,传入列表url都可以解析出aweme_id (Get video aweme_id, pass in the list url can parse out aweme_id)
-        Args:
-            urls: list: 列表url (list url)
-        Return:
-            aweme_ids: list: 视频的唯一标识，返回列表 (The unique identifier of the video, return list)
-        """
-        if not isinstance(urls, list):
-            raise TypeError("参数必须是列表类型")
-        # 提取有效URL
-        urls = extract_valid_urls(urls)
-        if urls == []:
-            raise (
-                APINotFoundError(
-                    "输入的URL List不合法。类名：{0}".format(cls.__name__)
-                )
-            )
-        aweme_ids = [cls.get_aweme_id(url) for url in urls]
-        return await asyncio.gather(*aweme_ids)

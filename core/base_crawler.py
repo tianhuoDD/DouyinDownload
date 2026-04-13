@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+# Modifications by romcere, 2026
+#
+# Changes made:
+# - 删除了一些没有使用的方法
+# - 适配 httpx 0.28+ 版本变更，移除已废弃的 proxies 参数
+# ==============================================================================
 
 # 基础爬虫结构
 import httpx
@@ -22,7 +28,7 @@ import asyncio
 import re
 from httpx import Response
 from core.common.logger import logger
-from .common.api_exceptions import (
+from core.common.api_exceptions import (
     APIError,
     APIConnectionError,
     APIResponseError,
@@ -33,7 +39,6 @@ from .common.api_exceptions import (
     APIRateLimitError,
     APIRetryExhaustedError,
 )
-
 
 class BaseCrawler:
     """
@@ -88,15 +93,6 @@ class BaseCrawler:
             transport=self.atransport,
         )
 
-    async def fetch_response(self, endpoint: str) -> Response:
-        """获取数据 (Get data)
-        Args:
-            endpoint (str): 接口地址 (Endpoint URL)
-        Returns:
-            Response: 原始响应对象 (Raw response object)
-        """
-        return await self.get_fetch_data(endpoint)
-
     async def fetch_get_json(self, endpoint: str) -> dict:
         """获取 JSON 数据 (Get JSON data)
         Args:
@@ -105,16 +101,6 @@ class BaseCrawler:
             dict: 解析后的JSON数据 (Parsed JSON data)
         """
         response = await self.get_fetch_data(endpoint)
-        return self.parse_json(response)
-
-    async def fetch_post_json(self, endpoint: str, params: dict = {}, data=None) -> dict:
-        """获取 JSON 数据 (Post JSON data)
-        Args:
-            endpoint (str): 接口地址 (Endpoint URL)
-        Returns:
-            dict: 解析后的JSON数据 (Parsed JSON data)
-        """
-        response = await self.post_fetch_data(endpoint, params, data)
         return self.parse_json(response)
 
     def parse_json(self, response: Response) -> dict:
@@ -187,84 +173,6 @@ class BaseCrawler:
 
             except APIError as e:
                 e.display_error()
-
-    async def post_fetch_data(self, url: str, params: dict = {}, data=None):
-        """
-        获取POST端点数据 (Get POST endpoint data)
-
-        Args:
-            url (str): 端点URL (Endpoint URL)
-            params (dict): POST请求参数 (POST request parameters)
-
-        Returns:
-            response: 响应内容 (Response content)
-        """
-        for attempt in range(self._max_retries):
-            try:
-                response = await self.aclient.post(
-                    url,
-                    json=None if not params else dict(params),
-                    data=None if not data else data,
-                    follow_redirects=True
-                )
-                if not response.text.strip() or not response.content:
-                    error_message = "第 {0} 次响应内容为空, 状态码: {1}, URL:{2}".format(attempt + 1,
-                                                                                         response.status_code,
-                                                                                         response.url)
-
-                    logger.warning(error_message)
-
-                    if attempt == self._max_retries - 1:
-                        raise APIRetryExhaustedError(
-                            "获取端点数据失败, 次数达到上限"
-                        )
-
-                    await asyncio.sleep(self._timeout)
-                    continue
-
-                # logger.info("响应状态码: {0}".format(response.status_code))
-                response.raise_for_status()
-                return response
-
-            except httpx.RequestError:
-                raise APIConnectionError(
-                    "连接端点失败，检查网络环境或代理：{0} 代理：{1} 类名：{2}".format(url, self.proxies,
-                                                                                   self.__class__.__name__)
-                )
-
-            except httpx.HTTPStatusError as http_error:
-                self.handle_http_status_error(http_error, url, attempt + 1)
-
-            except APIError as e:
-                e.display_error()
-
-    async def head_fetch_data(self, url: str):
-        """
-        获取HEAD端点数据 (Get HEAD endpoint data)
-
-        Args:
-            url (str): 端点URL (Endpoint URL)
-
-        Returns:
-            response: 响应内容 (Response content)
-        """
-        try:
-            response = await self.aclient.head(url)
-            # logger.info("响应状态码: {0}".format(response.status_code))
-            response.raise_for_status()
-            return response
-
-        except httpx.RequestError:
-            raise APIConnectionError("连接端点失败，检查网络环境或代理：{0} 代理：{1} 类名：{2}".format(
-                url, self.proxies, self.__class__.__name__
-            )
-            )
-
-        except httpx.HTTPStatusError as http_error:
-            self.handle_http_status_error(http_error, url, 1)
-
-        except APIError as e:
-            e.display_error()
 
     def handle_http_status_error(self, http_error, url: str, attempt):
         """

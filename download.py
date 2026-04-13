@@ -21,36 +21,26 @@
 # - 将该文件重构为独立方法模块，移除 FastAPI 依赖
 # ==============================================================================
 import os
-import sys
 import zipfile
 import subprocess
 import tempfile
 import asyncio
 import aiofiles
 import httpx
-import yaml
 from core.web_crawler import DouyinWebCrawler
-
-# ── 把项目根目录加入模块搜索路径 ──────────────────────────────────────────────
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+from config.settings import CONFIG
+# ── 读取配置文件 ────────────────────────────────────────
+config = CONFIG
 
 # ── 替代 FastAPI Request 的轻量封装 ─────────────────────────────────────────
 class MockRequest:
     """模拟 FastAPI Request，仅保留 download_standalone 所需的两个方法。"""
-
     def __init__(self, url_path: str = "/download", query_params: dict = None):
         self.url = type("URL", (), {"path": url_path})()
         self.query_params = query_params or {}
         self._disconnected = False
     async def is_disconnected(self) -> bool:
         return self._disconnected
-
-# ── 读取配置文件（TokenManager 部分） ────────────────────────────────────────
-config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
-with open(config_path, "r", encoding="utf-8") as _f:
-    config = yaml.safe_load(_f)
 
 # ── API 配置（config.yaml 中没有 API 段，直接在此处定义） ────────────────────
 config["API"] = {
@@ -176,7 +166,6 @@ async def download_file(
 ) -> str | None:
     """
     下载抖音 | TikTok | Bilibili 视频 / 图片。
-
     Parameters
     ----------
     url          : 视频或图片的分享链接
@@ -287,7 +276,7 @@ async def download_file(
 # ── 入口 ─────────────────────────────────────────────────────────────────────
 async def main():
     # 在这里修改目标 URL 和参数
-    target_url = "https://www.douyin.com/jingxuan?modal_id=7625833824341019914"
+    target_url = "https://www.douyin.com/video/7628183120067779675?modeFrom="
 
     result = await download_file(
         url=target_url,

@@ -1,6 +1,6 @@
 ### 说明
 
-> 本项目基于[`Douyin_TikTok_Download_API`](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)进行改编，其核心代码完全沿用于该项目，本项目仅进行扩展，感谢`Evil0ctal`作者的开源！
+> 本项目基于[`Douyin_TikTok_Download_API`](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)进行改编，其核心代码沿用于该项目，本项目仅进行扩展，感谢`Evil0ctal`作者的开源！
 
 ### 其他
 

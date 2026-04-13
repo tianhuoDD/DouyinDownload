@@ -18,23 +18,19 @@
 #
 # Changes made:
 # - 修改部分代码为静态方法
+# - 删除了一些没有使用的方法
 # ==============================================================================
 
-import os  # 系统操作
 import yaml  # 配置文件
 from urllib.parse import urlencode
 from core.models import PostDetail
 from core.base_crawler import BaseCrawler
 from core.ab import BogusManager
 from core.common.utils import AwemeIdFetcher
+from config.settings import CONFIG
 
 # 配置文件路径
-path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-# 读取配置文件
-with open(f"{path}/config.yaml", "r", encoding="utf-8") as f:
-    config = yaml.safe_load(f)
-
+config = CONFIG
 
 class DouyinWebCrawler:
     # 从配置文件中获取抖音的请求头
