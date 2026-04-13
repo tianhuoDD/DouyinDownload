@@ -1,5 +1,5 @@
 # API响应结构
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from core.common.utils import TokenManager
 # Base Model
 class BaseRequestModel(BaseModel):
@@ -36,7 +36,7 @@ class BaseRequestModel(BaseModel):
     time_list_query: str = "0"
     whale_cut_token: str = ""
     update_version_code: str = "170400"
-    msToken: str = TokenManager.gen_real_msToken()
+    msToken: str = Field(default_factory=TokenManager.gen_real_msToken)
 
 class PostDetail(BaseRequestModel):
     aweme_id: str

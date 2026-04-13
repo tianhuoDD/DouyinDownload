@@ -20,8 +20,6 @@
 # - 修改部分代码为静态方法
 # - 删除了一些没有使用的方法
 # ==============================================================================
-
-import yaml  # 配置文件
 from urllib.parse import urlencode
 from core.models import PostDetail
 from core.base_crawler import BaseCrawler

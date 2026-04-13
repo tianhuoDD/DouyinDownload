@@ -36,7 +36,6 @@ from core.common.api_exceptions import (
 )
 # 配置文件路径
 config = CONFIG
-
 def gen_random_str(randomlength: int) -> str:
     """
     根据传入长度产生随机字符串 (Generate a random string based on the given length)
@@ -45,11 +44,8 @@ def gen_random_str(randomlength: int) -> str:
     Returns:
         str: 生成的随机字符串 (The generated random string)
     """
-
     base_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-"
     return "".join(random.choice(base_str) for _ in range(randomlength))
-
-
 def get_timestamp(unit: str = "milli"):
     """
     根据给定的单位获取当前时间 (Get the current time based on the given unit)
@@ -59,7 +55,6 @@ def get_timestamp(unit: str = "milli"):
     Returns:
         int: 根据给定单位的当前时间 (The current time based on the given unit)
     """
-
     now = datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)
     if unit == "milli":
         return int(now.total_seconds() * 1000)
@@ -69,8 +64,7 @@ def get_timestamp(unit: str = "milli"):
         return int(now.total_seconds() / 60)
     else:
         raise ValueError("Unsupported time unit")
-
-
+# Token解析
 class TokenManager:
     douyin_manager = config.get("TokenManager").get("douyin")
     token_conf = douyin_manager.get("msToken", None)
@@ -80,7 +74,6 @@ class TokenManager:
         "http://": proxies_conf.get("http", None),
         "https://": proxies_conf.get("https", None),
     }
-
     @classmethod
     def gen_real_msToken(cls) -> str:
         """
@@ -129,7 +122,7 @@ class TokenManager:
     def gen_false_msToken(cls) -> str:
         """生成随机msToken (Generate random msToken)"""
         return gen_random_str(126) + "=="
-
+# URL解析
 class AwemeIdFetcher:
     # 预编译正则表达式
     _DOUYIN_VIDEO_URL_PATTERN = re.compile(r"video/([^/?]*)")

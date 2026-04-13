@@ -22,8 +22,6 @@
 # ==============================================================================
 import os
 import zipfile
-import subprocess
-import tempfile
 import asyncio
 import aiofiles
 import httpx
@@ -41,13 +39,6 @@ class MockRequest:
         self._disconnected = False
     async def is_disconnected(self) -> bool:
         return self._disconnected
-
-# ── API 配置（config.yaml 中没有 API 段，直接在此处定义） ────────────────────
-config["API"] = {
-    "Download_Switch": True,           # 是否启用下载
-    "Download_File_Prefix": "DY_",     # 文件名前缀，改为 "" 表示不加前缀
-    "Download_Path": "./downloads",    # 下载保存目录
-}
 
 # ── 工具函数（与原版保持一致） ────────────────────────────────────────────────
 async def fetch_data(url: str, headers: dict = None):
@@ -96,61 +87,6 @@ async def fetch_data_stream(
                         return False
                     await out_file.write(chunk)
     return True
-
-async def merge_bilibili_video_audio(
-    video_url: str,
-    audio_url: str,
-    request: MockRequest,
-    output_path: str,
-    headers: dict,
-) -> bool:
-    """下载并合并 Bilibili 的视频流和音频流。"""
-    video_temp_path = audio_temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".m4v", delete=False) as vt:
-            video_temp_path = vt.name
-        with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as at:
-            audio_temp_path = at.name
-
-        video_success = await fetch_data_stream(
-            video_url, request, headers={"headers": headers}, file_path=video_temp_path
-        )
-        audio_success = await fetch_data_stream(
-            audio_url, request, headers={"headers": headers}, file_path=audio_temp_path
-        )
-
-        if not video_success or not audio_success:
-            print("Failed to download video or audio stream")
-            return False
-
-        ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-i", video_temp_path,
-            "-i", audio_temp_path,
-            "-c:v", "copy",
-            "-c:a", "copy",
-            "-f", "mp4",
-            output_path,
-        ]
-        print(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
-        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
-        print(f"FFmpeg return code: {result.returncode}")
-        if result.stderr:
-            print(f"FFmpeg stderr: {result.stderr}")
-        if result.stdout:
-            print(f"FFmpeg stdout: {result.stdout}")
-        return result.returncode == 0
-
-    except Exception as e:
-        print(f"Error merging video and audio: {e}")
-        return False
-    finally:
-        for p in (video_temp_path, audio_temp_path):
-            if p:
-                try:
-                    os.unlink(p)
-                except Exception:
-                    pass
 
 # ── HybridCrawler（延迟导入，避免在不需要时引入依赖） ──────────────────────
 def _get_crawler():
