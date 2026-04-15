@@ -4,10 +4,10 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
-
+from douyin_core.common.tools import extract_sec_user_id,is_today
 # ========== 配置 ==========
-DOUYIN_USER_URL = "https://www.douyin.com/user/MS4wLjABAAAAsFL91bhVsEDoW39ZsExLDP6vhQ901VeWqx_eANoIMjJM4fKuSnka68tqyBHJs87j"  # 替换为目标抖音用户主页链接
-DOWNLOAD_DIR = Path("./downloads")
+DOUYIN_USER_URL = "https://www.douyin.com/user/MS4wLjABAAAAsFL91bhVsEDoW39ZsExLDP6vhQ901VeWqx_eANoIMjJM4fKuSnka68tqyBHJs87j?from_tab_name=main"  # 替换为目标抖音用户主页链接
+DOWNLOAD_DIR = Path("./downloads/douyin_video")
 BILI_TID = 138        # B站分区ID，138=搞笑，自行调整
 BILI_COPYRIGHT = 2    # 2=转载
 BILI_SOURCE = DOUYIN_USER_URL
@@ -16,23 +16,47 @@ BILI_TAGS = ["抖音", "搬运"]
 
 def get_today_videos() -> list[dict]:
     """获取目标账号今日发布的视频信息列表"""
+
     result = subprocess.run(
-        ["python", "douyin_download.py", "info", DOUYIN_USER_URL, "--full"],
-        capture_output=True, text=True
+        [
+            "python",
+            "douyin_user_info.py",
+            extract_sec_user_id(DOUYIN_USER_URL),
+            "-o",
+            "-"
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8"
     )
+
     if result.returncode != 0:
         print("获取视频信息失败:", result.stderr)
         return []
 
-    all_videos = json.loads(result.stdout)  # 根据你的 info 实际输出格式调整
-    today = date.today().isoformat()        # "2025-04-15"
+    # 清理可能的多余输出（避免 stdout 混入日志）
+    raw = result.stdout.strip()
 
+    try:
+        all_videos = json.loads(raw)
+    except json.JSONDecodeError:
+        print("JSON解析失败，原始输出如下：")
+        print(raw)
+        return []
+    # 找到视频列表
+    aweme_list = all_videos.get("data", {}).get("aweme_list", [])
     today_videos = []
-    for v in all_videos:
-        # create_time 字段名请根据 --full 的实际输出调整
-        create_time = v.get("create_time", "")
-        if create_time.startswith(today):
-            today_videos.append(v)
+    for v in aweme_list:
+        # 从 result 中找到 create_time
+        create_time = v.get("create_time")
+        if isinstance(create_time, (int, float)):
+            if is_today(create_time):
+                today_videos.append(v)
+
+        elif isinstance(create_time, str):
+            # 兼容字符串时间（兜底）
+            if date.today().isoformat() in create_time:
+                today_videos.append(v)
 
     print(f"今日新视频数量: {len(today_videos)}")
     return today_videos
@@ -45,7 +69,7 @@ def download_video(video: dict) -> Path | None:
 
     result = subprocess.run(
         ["python", "douyin_download.py", "download", url],
-        capture_output=True, text=True, cwd="."
+        capture_output=True, text=True, encoding="utf-8",cwd="."
     )
     if result.returncode != 0:
         print(f"下载失败: {url}\n{result.stderr}")
@@ -53,12 +77,14 @@ def download_video(video: dict) -> Path | None:
 
     # 找到最新下载的 mp4 文件（简单策略：mtime 最新）
     mp4_files = sorted(DOWNLOAD_DIR.glob("*.mp4"), key=lambda f: f.stat().st_mtime, reverse=True)
+    print(f"已下载视频: {mp4_files[0].name}")
     return mp4_files[0] if mp4_files else None
 
 
 def upload_to_bilibili(video_path: Path, title: str, desc: str):
     """上传视频到B站"""
     tags_args = BILI_TAGS
+    print(f"\n正在上传：标题：{title} 来源：{BILI_SOURCE}")
     result = subprocess.run(
         [
             "python", "bilibili_upload.py", "upload",
@@ -70,7 +96,7 @@ def upload_to_bilibili(video_path: Path, title: str, desc: str):
             "--copyright", str(BILI_COPYRIGHT),
             "--source", BILI_SOURCE,
         ],
-        capture_output=True, text=True
+        capture_output=True, text=True, encoding="utf-8"
     )
     if result.returncode != 0:
         print(f"上传失败: {video_path.name}\n{result.stderr}")
@@ -80,6 +106,7 @@ def upload_to_bilibili(video_path: Path, title: str, desc: str):
 
 
 def main():
+    global BILI_SOURCE
     videos = get_today_videos()
     if not videos:
         print("今日无新视频，退出。")
@@ -88,8 +115,9 @@ def main():
     for video in videos:
         title = video.get("desc", "抖音视频搬运")
         desc  = video.get("desc", "")
+        BILI_SOURCE = "https://www.douyin.com/video/" + str(video.get("aweme_id", ""))
+        print(f"处理视频: {title}")
 
-        print(f"\n处理视频: {title}")
         video_path = download_video(video)
         if not video_path:
             continue

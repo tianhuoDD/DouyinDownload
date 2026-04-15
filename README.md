@@ -12,11 +12,17 @@
 
 - ✅ 抖音视频下载（无水印）
 - ✅ B站自动投稿（支持命令行上传）
-- ⬜ 可组合为“抖音 → B站”自动搬运流程
+- ✅ 可组合为“抖音 → B站”自动搬运流程
 - ✅ B站登录后自动获得cookie
-- ⬜ 抖音登录后自动获得cookie
 
 ## 🛠 使用方法
+
+### 自动将抖音视频上传到B站
+
+1. 手动配置`config/douyin_config.yaml`文件中的抖音`cookie`
+2. 运行`python bilibili_upload.py login`，自动生成B站cookie
+
+3. 使用 `auto_pipeline.py` 脚本，将 `DOUYIN_USER_URL` 配置为目标用户主页地址后，即可一键运行完成全流程处理。
 
 ### 1. 抖音视频下载
 
@@ -91,6 +97,8 @@ python bilibili_upload.py upload --file 视频.mp4 --title "标题" --tid 138 --
 | `--cookie`    | str       | cookies.json | Cookie 文件路径                                              |
 
 ### 3.抖音获取用户视频链接
+
+脚本：`douyin_user_info.py`
 
 ```bash
 # 基本用法（位置参数 + 默认值）
