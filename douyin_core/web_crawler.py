@@ -21,7 +21,7 @@
 # - 删除了一些没有使用的方法
 # ==============================================================================
 from urllib.parse import urlencode
-from douyin_core.models import PostDetail
+from douyin_core.models import PostDetail, UserPost
 from douyin_core.base_crawler import BaseCrawler
 from douyin_core.ab import BogusManager
 from douyin_core.common.utils import AwemeIdFetcher
@@ -72,3 +72,22 @@ class DouyinWebCrawler:
     # 提取单个作品id
     async def get_aweme_id( url: str):
         return await AwemeIdFetcher.get_aweme_id(url)
+
+    # 获取用户发布作品数据
+    async def fetch_user_post_videos(self, sec_user_id: str, max_cursor: int, count: int):
+        kwargs = await self.get_douyin_headers()
+        base_crawler = BaseCrawler(proxies=kwargs["proxies"], crawler_headers=kwargs["headers"])
+        async with base_crawler as crawler:
+            params = UserPost(sec_user_id=sec_user_id, max_cursor=max_cursor, count=count)
+            # endpoint = BogusManager.xb_model_2_endpoint(
+            #     DouyinAPIEndpoints.USER_POST, params.dict(), kwargs["headers"]["User-Agent"]
+            # )
+            # response = await crawler.fetch_get_json(endpoint)
+
+            # 生成一个用户发布作品数据的带有a_bogus加密参数的Endpoint
+            params_dict = params.dict()
+            params_dict["msToken"] = ''
+            a_bogus = BogusManager.ab_model_2_endpoint(params_dict, kwargs["headers"]["User-Agent"])
+            endpoint = f"https://www.douyin.com/aweme/v1/web/aweme/post/?{urlencode(params_dict)}&a_bogus={a_bogus}"
+            response = await crawler.fetch_get_json(endpoint)
+        return response

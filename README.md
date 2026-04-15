@@ -22,13 +22,13 @@
 
 脚本：`douyin_download.py`
 
-#### 📌 使用说明
+#### （1）使用说明
 
 1. 需要自行获取抖音的`cookie`，并将其序列化后放入`config/douyin_config.yaml`中
 
 2. 准备目标视频链接（支持格式详见：[支持的提交格式](https://github.com/Evil0ctal/Douyin_TikTok_Download_API?tab=readme-ov-file#️支持的提交格式)）
 
-#### 🔍 视频信息获取
+#### （2）视频信息获取
 
 ```bash
 # 获取精简视频信息
@@ -41,7 +41,7 @@ python douyin_download.py info <视频链接> --full
 python douyin_download.py info <视频链接> --output data.json
 ```
 
-#### ⬇️ 视频下载
+#### （3）视频下载
 
 ```bash
 # 下载无水印视频（默认）
@@ -89,6 +89,25 @@ python bilibili_upload.py upload --file 视频.mp4 --title "标题" --tid 138 --
 | `--lines`     | str       | AUTO         | 上传线路（AUTO/bda/bda2/ws/qn/tx/txa）                       |
 | `--threads`   | int       | 3            | 并发上传线程数                                               |
 | `--cookie`    | str       | cookies.json | Cookie 文件路径                                              |
+
+### 3.抖音获取用户视频链接
+
+```bash
+# 基本用法（位置参数 + 默认值）
+python douyin_user_info.py MS4wLjABAAAAsFL91bhVsEDoW39ZsExLDP6vhQ901VeWqx_eANoIMjJM4fKuSnka68tqyBHJs87
+
+# 指定数量和游标
+python douyin_user_info.py <sec_user_id> -c 5 -m 0
+
+# 输出到 stdout（控制台）
+python douyin_user_info.py <sec_user_id> -o -
+
+# 保存到自定义文件
+python douyin_user_info.py <sec_user_id> -o my_output.json
+
+# 查看帮助
+python douyin_user_info.py --help
+```
 
 ## 🧩 扩展工具（可选）
 

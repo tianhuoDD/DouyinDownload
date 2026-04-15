@@ -40,3 +40,8 @@ class BaseRequestModel(BaseModel):
 
 class PostDetail(BaseRequestModel):
     aweme_id: str
+
+class UserPost(BaseRequestModel):
+    max_cursor: int
+    count: int
+    sec_user_id: str
