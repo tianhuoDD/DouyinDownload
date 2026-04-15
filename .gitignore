@@ -1,8 +1,8 @@
-config/config.yaml
+config/douyin_config.yaml
 prompt.md
 .idea/
 logs/
 downloads/
 __pycache__/
 *.pyc
-cookies.json
+bili_cookies.json

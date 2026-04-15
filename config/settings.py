@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # =========================
 # 配置文件路径
 # =========================
-CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+CONFIG_PATH = PROJECT_ROOT / "config" / "douyin_config.yaml"
 
 # =========================
 # 读取配置（只加载一次）

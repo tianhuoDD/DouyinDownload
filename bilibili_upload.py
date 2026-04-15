@@ -136,7 +136,7 @@ class BiliAuth:
 
     # ── 公共接口 ──────────────────────────────
 
-    def load_or_login(self, cookie_file: str = 'cookies.json') -> None:
+    def load_or_login(self, cookie_file: str = 'config/bili_cookies.json') -> None:
         """
         优先从文件恢复登录态；
         文件不存在或 Cookie 已失效时自动发起扫码登录。
@@ -152,7 +152,7 @@ class BiliAuth:
         print('[INFO] 未找到有效 Cookie，启动扫码登录...')
         self.qrcode_login(cookie_file)
 
-    def qrcode_login(self, cookie_file: str = 'cookies.json') -> None:
+    def qrcode_login(self, cookie_file: str = 'config/bili_cookies.json') -> None:
         """TV 端二维码扫码登录，成功后保存 Cookie 到文件"""
         auth_code, qr_url = self._request_qrcode()
         self._print_qrcode(qr_url)
@@ -554,7 +554,7 @@ def upload_video(
         cover_path:  Optional[str]  = None,
         lines:       str            = 'AUTO',
         threads:     int            = 3,
-        cookie_file: str            = 'cookies.json',
+        cookie_file: str            = 'config/bili_cookies.json',
 ) -> dict:
     """
     上传视频到 B 站（门面函数）
@@ -623,7 +623,7 @@ def main() -> None:
 
     # ── 登录子命令 ────────────────────────────
     login_p = sub.add_parser('login', help='扫码登录并保存 Cookie')
-    login_p.add_argument('--cookie', default='cookies.json', help='Cookie 保存路径')
+    login_p.add_argument('--cookie', default='config/bili_cookies.json', help='Cookie 保存路径')
 
     # ── 上传子命令 ────────────────────────────
     up_p = sub.add_parser('upload', help='上传视频')
@@ -637,7 +637,7 @@ def main() -> None:
     up_p.add_argument('--cover',     default=None,          help='封面图片路径')
     up_p.add_argument('--lines',     default='AUTO',        help='上传线路')
     up_p.add_argument('--threads',   type=int, default=3,   help='并发线程数')
-    up_p.add_argument('--cookie',    default='cookies.json', help='Cookie 文件路径')
+    up_p.add_argument('--cookie',    default='config/bili_cookies.json', help='Cookie 文件路径')
 
     args = parser.parse_args()
 
