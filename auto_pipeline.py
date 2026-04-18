@@ -4,14 +4,19 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
-from douyin_core.common.tools import extract_sec_user_id,is_today
+from douyin_core.common.tools import extract_sec_user_id, is_today,is_yesterday
+import sys
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
 # ========== 配置 ==========
 DOUYIN_USER_URL = "https://www.douyin.com/user/MS4wLjABAAAAsFL91bhVsEDoW39ZsExLDP6vhQ901VeWqx_eANoIMjJM4fKuSnka68tqyBHJs87j?from_tab_name=main"  # 替换为目标抖音用户主页链接
 DOWNLOAD_DIR = Path("./downloads/douyin_video")
-BILI_TID = 138        # B站分区ID，138=搞笑，自行调整
-BILI_COPYRIGHT = 2    # 2=转载
+BILI_TID = 138  # B站分区ID，138=搞笑，自行调整
+BILI_COPYRIGHT = 2  # 2=转载
 BILI_SOURCE = DOUYIN_USER_URL
 BILI_TAGS = ["抖音", "搬运"]
+
+
 # ==========================
 
 def get_today_videos() -> list[dict]:
@@ -27,7 +32,8 @@ def get_today_videos() -> list[dict]:
         ],
         capture_output=True,
         text=True,
-        encoding="utf-8"
+        encoding="utf-8",
+        errors="ignore",
     )
 
     if result.returncode != 0:
@@ -38,26 +44,31 @@ def get_today_videos() -> list[dict]:
     raw = result.stdout.strip()
 
     try:
-        all_videos = json.loads(raw)
+        res = json.loads(raw)
+        data = res.get("data", {})
     except json.JSONDecodeError:
         print("JSON解析失败，原始输出如下：")
         print(raw)
         return []
     # 找到视频列表
-    aweme_list = all_videos.get("data", {}).get("aweme_list", [])
+    all_videos = data.get("aweme_list", [])
+    # 获取当前用户的信息
+    nickname = all_videos[0].get("author",{}).get("nickname", "未知")
+    print(f"正在获取 {nickname} 的视频...")
     today_videos = []
-    for v in aweme_list:
+    for v in all_videos:
         # 从 result 中找到 create_time
         create_time = v.get("create_time")
         if isinstance(create_time, (int, float)):
+            # if is_yesterday(create_time):
+            #     today_videos.append(v)
             if is_today(create_time):
-                today_videos.append(v)
+               today_videos.append(v)
 
         elif isinstance(create_time, str):
             # 兼容字符串时间（兜底）
             if date.today().isoformat() in create_time:
                 today_videos.append(v)
-
     print(f"今日新视频数量: {len(today_videos)}")
     return today_videos
 
@@ -69,7 +80,7 @@ def download_video(video: dict) -> Path | None:
 
     result = subprocess.run(
         ["python", "douyin_download.py", "download", url],
-        capture_output=True, text=True, encoding="utf-8",cwd="."
+        capture_output=True, text=True, encoding="utf-8", errors="ignore", cwd="."
     )
     if result.returncode != 0:
         print(f"下载失败: {url}\n{result.stderr}")
@@ -89,14 +100,14 @@ def upload_to_bilibili(video_path: Path, title: str, desc: str):
         [
             "python", "bilibili_upload.py", "upload",
             "--file", str(video_path),
-            "--title", title[:80],   # B站标题限80字
+            "--title", title[:80],  # B站标题限80字
             "--tid", str(BILI_TID),
             "--tags", *tags_args,
             "--desc", desc[:250],
             "--copyright", str(BILI_COPYRIGHT),
             "--source", BILI_SOURCE,
         ],
-        capture_output=True, text=True, encoding="utf-8"
+        capture_output=True, text=True, encoding="utf-8", errors="ignore"
     )
     if result.returncode != 0:
         print(f"上传失败: {video_path.name}\n{result.stderr}")
@@ -114,7 +125,7 @@ def main():
 
     for video in videos:
         title = video.get("desc", "抖音视频搬运")
-        desc  = video.get("desc", "")
+        desc = video.get("desc", "")
         BILI_SOURCE = "https://www.douyin.com/video/" + str(video.get("aweme_id", ""))
         print(f"处理视频: {title}")
 

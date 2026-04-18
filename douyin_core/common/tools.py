@@ -1,5 +1,5 @@
 from urllib.parse import urlparse
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 def extract_sec_user_id(url: str) -> str | None:
     """
     从抖音用户主页 URL 中提取 sec_user_id
@@ -23,6 +23,10 @@ def extract_sec_user_id(url: str) -> str | None:
 def is_today(ts: int) -> bool:
     """判断时间戳是否为今天"""
     return datetime.fromtimestamp(ts).date() == date.today()
+
+def is_yesterday(ts: int) -> bool:
+    """判断时间戳是否为昨天"""
+    return datetime.fromtimestamp(ts).date() == date.today() - timedelta(days=1)
 if __name__ == "__main__":
     url = "https://www.douyin.com/user/MS4wLjABAAAAsFL91bhVsEDoW39ZsExLDP6vhQ901VeWqx_eANoIMjJM4fKuSnka68tqyBHJs87j?from_tab_name=main"
     sec_user_id = extract_sec_user_id(url)
