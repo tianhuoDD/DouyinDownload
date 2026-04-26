@@ -28,10 +28,17 @@ DOUYIN_USER_INFO_SCRIPT  = SCRIPTS_DIR / "douyin_user_info.py"
 DOUYIN_DOWNLOAD_SCRIPT   = SCRIPTS_DIR / "douyin_download.py"
 BILIBILI_UPLOAD_SCRIPT   = SCRIPTS_DIR / "bilibili_upload.py"
 
+
 def _utf8_env():
-    """让子进程强制使用 UTF-8 输出"""
+    """让子进程强制使用 UTF-8 输出，并注入项目根路径"""
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
+
+    # 将项目根目录加入 PYTHONPATH，让子进程能找到 douyin_core
+    project_root = str(Path(__file__).parent)
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{project_root}{os.pathsep}{existing}" if existing else project_root
+
     return env
 # ==========================
 
@@ -40,18 +47,10 @@ def get_today_videos() -> list[dict]:
     """获取目标账号今日发布的视频信息列表"""
 
     result = subprocess.run(
-        [
-            "python",
-            DOUYIN_USER_INFO_SCRIPT,
-            extract_sec_user_id(DOUYIN_USER_URL),
-            "-o",
-            "-"
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="ignore",
-        env=_utf8_env()
+        [sys.executable,DOUYIN_USER_INFO_SCRIPT,extract_sec_user_id(DOUYIN_USER_URL),
+         "-o",
+         "-"],
+        capture_output=True,text=True,encoding="utf-8",errors="ignore",env=_utf8_env()
     )
 
     if result.returncode != 0:
@@ -96,8 +95,8 @@ def download_video(video: dict) -> Path | None:
     DOWNLOAD_DIR.mkdir(exist_ok=True)
 
     result = subprocess.run(
-        ["python", DOUYIN_DOWNLOAD_SCRIPT, "download", url],
-        capture_output=True, text=True, encoding="utf-8", errors="ignore", cwd=".", env=_utf8_env()
+        [sys.executable, DOUYIN_DOWNLOAD_SCRIPT, "download", url],
+        capture_output=True, text=True, encoding="utf-8", errors="ignore", env=_utf8_env()
     )
     if result.returncode != 0:
         print(f"下载失败: {url}\n{result.stderr}")
@@ -114,7 +113,7 @@ def upload_to_bilibili(video_path: Path, title: str, desc: str, source: str):
     print(f"\n正在上传：标题：{title} 来源：{source}")
     result = subprocess.run(
         [
-            "python", BILIBILI_UPLOAD_SCRIPT, "upload",
+            sys.executable, BILIBILI_UPLOAD_SCRIPT, "upload",
             "--file", str(video_path),
             "--title", title[:80],  # B站标题限80字
             "--tid", str(BILI_TID),
