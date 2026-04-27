@@ -36,6 +36,7 @@ jobs:
         run: |
           python - <<'PYEOF'
           import os
+          print(f"[调试] {DOUYIN_COOKIE}")
           with open("config/douyin_config.example.yaml", "r", encoding="utf-8") as f:
               content = f.read()
           content = content.replace("__DOUYIN_COOKIE__", os.environ["DOUYIN_COOKIE"])
