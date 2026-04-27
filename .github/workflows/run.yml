@@ -42,7 +42,8 @@ jobs:
           with open("config/douyin_config.yaml", "w", encoding="utf-8") as f:
               f.write(content)
           PYEOF
-
+      - name: 检查配置文件内容
+        run: grep "Cookie" config/douyin_config.yaml
       - name: 还原B站凭证文件
         env:
           BILIBILI_CREDENTIALS: ${{ secrets.BILIBILI_CREDENTIALS }}
