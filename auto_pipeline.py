@@ -20,13 +20,17 @@ BILI_TAGS = ["抖音", "搬运"] # 默认标签
 
 # 标题关键词过滤（留空列表则不过滤）
 TITLE_INCLUDE_KEYWORDS = []  # 标题必须包含其中一个
-TITLE_EXCLUDE_KEYWORDS = ['途游斗地主']  # 标题不能包含其中任何一个
+TITLE_EXCLUDE_KEYWORDS = ["途游斗地主"]  # 标题不能包含其中任何一个
 
 # 脚本路径配置（如果移动了这些文件，在这里修改）
 SCRIPTS_DIR = Path("./crawler_suite")  # 改成你实际的目录
 DOUYIN_USER_INFO_SCRIPT  = SCRIPTS_DIR / "douyin_user_info.py"
 DOUYIN_DOWNLOAD_SCRIPT   = SCRIPTS_DIR / "douyin_download.py"
 BILIBILI_UPLOAD_SCRIPT   = SCRIPTS_DIR / "bilibili_upload.py"
+
+# 状态文件路径，记录已上传的 aweme_id，防止重复投稿
+STATE_FILE = Path("./state/uploaded.json")
+# ==========================
 
 
 def _utf8_env():
@@ -40,6 +44,33 @@ def _utf8_env():
     env["PYTHONPATH"] = f"{project_root}{os.pathsep}{existing}" if existing else project_root
 
     return env
+
+
+# ---------- 状态管理 ----------
+
+def load_uploaded_ids() -> set:
+    """读取已上传的 aweme_id 集合"""
+    if not STATE_FILE.exists():
+        return set()
+    try:
+        data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        return set(data.get("uploaded_ids", []))
+    except (json.JSONDecodeError, KeyError):
+        print(f"[警告] 状态文件损坏，重置为空: {STATE_FILE}")
+        return set()
+
+
+def save_uploaded_id(aweme_id: str, uploaded_ids: set):
+    """追加一条已上传记录并写回文件，上传成功后立即调用，防止中途崩溃丢失记录"""
+    uploaded_ids.add(aweme_id)
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(
+        json.dumps({"uploaded_ids": sorted(uploaded_ids)}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"[状态] 已记录 aweme_id: {aweme_id}")
+
+
 # ==========================
 
 # 获取今日视频信息
@@ -88,11 +119,13 @@ def get_today_videos() -> list[dict]:
                 today_videos.append(v)
     print(f"今日新视频数量: {len(today_videos)}")
     return today_videos
+
+
 # 下载视频
 def download_video(video: dict) -> Path | None:
     """下载单个无水印视频，返回本地文件路径"""
     url = video.get("share_url") or video.get("aweme_id")  # 根据实际字段调整
-    DOWNLOAD_DIR.mkdir(exist_ok=True)
+    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     result = subprocess.run(
         [sys.executable, DOUYIN_DOWNLOAD_SCRIPT, "download", url],
@@ -106,8 +139,10 @@ def download_video(video: dict) -> Path | None:
     mp4_files = sorted(DOWNLOAD_DIR.glob("*.mp4"), key=lambda f: f.stat().st_mtime, reverse=True)
     print(f"已下载视频: {mp4_files[0].name}")
     return mp4_files[0] if mp4_files else None
+
+
 # 上传视频
-def upload_to_bilibili(video_path: Path, title: str, desc: str, source: str):
+def upload_to_bilibili(video_path: Path, title: str, desc: str, source: str) -> bool:
     """上传视频到B站"""
     tags_args = BILI_TAGS
     print(f"\n正在上传：标题：{title} 来源：{source}")
@@ -131,49 +166,82 @@ def upload_to_bilibili(video_path: Path, title: str, desc: str, source: str):
     return True
 
 def main():
+    # 读取历史已上传记录，用于去重
+    uploaded_ids = load_uploaded_ids()
+    print(f"[状态] 历史已上传视频数: {len(uploaded_ids)}")
+
     videos = get_today_videos()
     if not videos:
         print("今日无新视频，退出。")
         sys.exit(0)
 
+    # 去重：跳过已上传的视频
+    new_videos = []
+    for v in videos:
+        aweme_id = v.get("aweme_id", "")
+        if aweme_id in uploaded_ids:
+            print(f"[跳过] 已上传过: 「{v.get('desc', aweme_id)}」")
+        else:
+            new_videos.append(v)
+
+    if not new_videos:
+        print("今日视频均已上传，退出。")
+        sys.exit(0)
+
     # 关键词过滤
     if TITLE_INCLUDE_KEYWORDS:
         filtered = []
-        for v in videos:
+        for v in new_videos:
             desc = v.get("desc", "")
             matched = [kw for kw in TITLE_INCLUDE_KEYWORDS if kw in desc]
             if matched:
                 filtered.append(v)
             else:
                 print(f"[跳过] 「{desc}」— 不含包含关键词: {TITLE_INCLUDE_KEYWORDS}")
-        videos = filtered
+        new_videos = filtered
     if TITLE_EXCLUDE_KEYWORDS:
         filtered = []
-        for v in videos:
+        for v in new_videos:
             desc = v.get("desc", "")
             matched = [kw for kw in TITLE_EXCLUDE_KEYWORDS if kw in desc]
             if matched:
                 print(f"[跳过] 「{desc}」— 含排除关键词: {matched}")
             else:
                 filtered.append(v)
-        videos = filtered
+        new_videos = filtered
 
-    print(f"过滤后视频数量: {len(videos)}")
-    for i,video in enumerate(videos):
-        title = video.get("desc", "抖音视频搬运")
+    print(f"过滤后视频数量: {len(new_videos)}")
+
+    success_count = 0
+    fail_count = 0
+
+    for i, video in enumerate(new_videos):
+        title = video.get("desc", "抖音视频搬运") or "抖音视频搬运"
         desc = video.get("desc", "")
-        aweme_id = video.get("aweme_id")
+        aweme_id = video.get("aweme_id", "")
         source = f"https://www.douyin.com/video/{aweme_id}" if aweme_id else BILI_SOURCE
-        print(f"处理视频: {title}")
+        print(f"\n[{i+1}/{len(new_videos)}] 处理视频: {title}")
 
         video_path = download_video(video)
         if not video_path:
+            fail_count += 1
             continue
-        upload_to_bilibili(video_path, title, desc, source)
+
+        ok = upload_to_bilibili(video_path, title, desc, source)
+        if ok and aweme_id:
+            # 上传成功后立即写入状态，防止中途崩溃导致重复上传
+            save_uploaded_id(aweme_id, uploaded_ids)
+            success_count += 1
+        else:
+            fail_count += 1
+
         # 上传后等待1分钟，最后一个视频不用等
-        if i < len(videos) - 1:
+        if i < len(new_videos) - 1:
             print("等待 60 秒后继续下一个视频...")
             time.sleep(60)
+
+    print(f"\n========== 完成 ==========")
+    print(f"成功: {success_count}  失败: {fail_count}")
 
 if __name__ == "__main__":
     main()
