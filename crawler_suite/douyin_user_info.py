@@ -38,6 +38,7 @@ import asyncio
 import argparse
 import json
 import sys
+import traceback
 from douyin_core.web_crawler import DouyinWebCrawler
 
 crawler = DouyinWebCrawler()
@@ -62,7 +63,7 @@ async def fetch_user_post_videos(
         data = await crawler.fetch_user_post_videos(sec_user_id, max_cursor, count)
         return {"code": 200, "data": data}
     except Exception as e:
-        return {"code": 400, "message": str(e)}
+        return {"code": 400, "message": traceback.format_exc()}
 
 
 async def run(args: argparse.Namespace):

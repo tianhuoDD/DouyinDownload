@@ -223,6 +223,7 @@ def main():
     for i, video in enumerate(new_videos):
         title = video.get("desc", "抖音视频搬运") or "抖音视频搬运"
         desc = video.get("desc", "")
+        desc += "\n\n本视频通过 douyin2bilibili 自动上传，如有错误请联系作者 https://github.com/romcere/douyin2bilibili"
         aweme_id = video.get("aweme_id", "")
         source = f"https://www.douyin.com/video/{aweme_id}" if aweme_id else BILI_SOURCE
         print(f"\n[{i+1}/{len(new_videos)}] 处理视频: {title}")
