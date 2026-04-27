@@ -23,6 +23,16 @@ jobs:
       - name: 安装所需包
         run: pip install -r requirements.txt
 
+      - name: 还原dy配置文件
+        run: |
+          sed "s|__DOUYIN_COOKIE__|${{ secrets.DOUYIN_COOKIE }}|g" config/douyin_config.example.yaml > config/douyin_config
+          .yaml
+          mv config/douyin_config.example.yaml config/douyin_config.yaml
+
+      - name: 还原B站凭证文件
+        run: |
+          echo '${{ secrets.BILIBILI_CREDENTIALS }}' > config/bili_cookies.json
+
       - name: 读取上传状态缓存
         uses: actions/cache@v4
         with:
