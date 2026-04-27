@@ -53,7 +53,6 @@ jobs:
               f.write(os.environ["BILIBILI_CREDENTIALS"])
           PYEOF
 
-
       - name: 读取上传状态缓存
         uses: actions/cache@v4
         with:
@@ -63,3 +62,9 @@ jobs:
 
       - name: 运行自动化脚本
         run: python auto_pipeline.py
+        env:
+          PYTHONIOENCODING: utf-8
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+          DOUYIN_COOKIE: ${{ secrets.DOUYIN_COOKIE }}
+          BILIBILI_CREDENTIALS: ${{ secrets.BILIBILI_CREDENTIALS }}

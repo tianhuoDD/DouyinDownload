@@ -37,6 +37,8 @@ def _utf8_env():
     """让子进程强制使用 UTF-8 输出，并注入项目根路径"""
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
+    env["LANG"] = "en_US.UTF-8"
+    env["LC_ALL"] = "en_US.UTF-8"
 
     # 将项目根目录加入 PYTHONPATH，让子进程能找到 douyin_core
     project_root = str(Path(__file__).parent)
