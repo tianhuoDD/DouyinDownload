@@ -117,6 +117,92 @@ python douyin_user_info.py <sec_user_id> -o my_output.json
 python douyin_user_info.py --help
 ```
 
+## ⚙ 使用GitHub自动运行
+
+### 1. Fork 本仓库
+
+点击右上角 **Fork**，将本仓库复制到你的账号下。
+
+### 2. 配置 Secrets
+
+进入你 Fork 后的仓库，点击 **Settings → Secrets and variables → Actions → New repository secret**，依次添加以下两个 Secret：
+
+#### `DOUYIN_COOKIE`
+
+你的抖音登录 Cookie，用于访问抖音接口。
+
+获取方式：
+
+1. 浏览器打开 https://www.douyin.com 并登录
+2. 按 `F12` 打开开发者工具，切换到 **Network** 标签
+3. 刷新页面，随意点击一个请求
+4. 在请求头（Request Headers）中找到 `Cookie` 字段，复制其完整值
+
+| 字段   | 值                     |
+| ------ | ---------------------- |
+| Name   | `DOUYIN_COOKIE`        |
+| Secret | 你复制的 Cookie 字符串 |
+
+------
+
+#### `BILIBILI_CREDENTIALS`
+
+你的 B 站登录凭证，JSON 格式。
+
+获取方式：
+
+1. 在本地运行 `python crawler_suite/bilibili_upload.py login` 完成登录
+2. 找到生成的 `config/bili_cookies.json` 文件
+3. 将文件的完整内容粘贴进来
+
+| 字段   | 值                                   |
+| ------ | ------------------------------------ |
+| Name   | `BILIBILI_CREDENTIALS`               |
+| Secret | `bili_cookies.json` 的完整 JSON 内容 |
+
+### 3. 修改配置
+
+编辑 `auto_pipeline.py`，根据需要调整以下配置项：
+
+```python
+# 目标抖音用户主页链接
+DOUYIN_USER_URL = "https://www.douyin.com/user/..."
+
+# B 站分区 ID，138=搞笑，自行调整
+BILI_TID = 138
+
+# 默认标签
+BILI_TAGS = ["抖音", "搬运"]
+
+# 标题关键词过滤（留空列表则不过滤）
+TITLE_INCLUDE_KEYWORDS = []       # 标题必须包含其中一个
+TITLE_EXCLUDE_KEYWORDS = ["xxx"]  # 标题不能包含其中任何一个
+```
+
+### 4. 启用 GitHub Actions
+
+1. 进入你 Fork 后的仓库，点击顶部 **Actions** 标签
+2. 点击 **I understand my workflows, go ahead and enable them**（首次使用需要手动开启）
+3. 在左侧找到 **auto-dy2bili**，点击右侧 **Enable workflow**
+
+### 5. 运行时机
+
+Workflow 会在以下北京时间自动触发：
+
+| UTC 时间 | 北京时间 |
+| -------- | -------- |
+| 11:30    | 19:30    |
+| 12:30    | 20:30    |
+| 13:30    | 21:30    |
+| 14:30    | 22:30    |
+
+也可以在 **Actions → auto-dy2bili → Run workflow** 手动触发。
+
+### 其他
+
+- Cookie 有过期时间，失效后需要重新获取并更新对应的 Secret
+- B 站凭证同样有效期有限，过期后需重新登录并更新
+
 ## 🧩 扩展工具（可选）
 
 如果你希望将项目转换为 **AI 可读上下文文档**（用于代码分析 / Prompt 构建）：
