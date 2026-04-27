@@ -2,7 +2,7 @@ name: auto-dy2bili
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: "*/5 * * * *" # 每5分钟
   workflow_dispatch:
 
 jobs:
