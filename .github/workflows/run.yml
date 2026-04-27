@@ -2,10 +2,7 @@ name: auto-dy2bili
 
 on:
   schedule:
-    - cron: "30 11 * * *"  # 19:30 北京时间
-    - cron: "30 12 * * *"  # 20:30
-    - cron: "30 13 * * *"  # 21:30
-    - cron: "30 14 * * *"  # 22:30
+    - cron: '30 12 * * *'
   workflow_dispatch:
 
 jobs:
