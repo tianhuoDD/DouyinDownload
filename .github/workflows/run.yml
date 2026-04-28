@@ -17,16 +17,52 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install deps
+      - name: 缓存pip依赖
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: pip-${{ runner.os }}-
+
+      - name: 安装所需包
         run: pip install -r requirements.txt
 
-      - name: Run pipeline
-        run: python auto_pipeline.py
-
-      - name: Commit state
+      - name: 还原dy配置文件
+        env:
+          DOUYIN_COOKIE: ${{ secrets.DOUYIN_COOKIE }}
         run: |
-          git config user.name "bot"
-          git config user.email "bot@github.com"
-          git add state/uploaded.json
-          git commit -m "update state" || echo "no changes"
-          git push
+          python - <<'PYEOF'
+          import os
+          cookie = os.environ.get("DOUYIN_COOKIE", "")
+          with open("config/douyin_config.example.yaml", "r", encoding="utf-8") as f:
+              content = f.read()
+          content = content.replace("__DOUYIN_COOKIE__", cookie)
+          with open("config/douyin_config.yaml", "w", encoding="utf-8") as f:
+              f.write(content)
+          PYEOF
+
+      - name: 还原B站凭证文件
+        env:
+          BILIBILI_CREDENTIALS: ${{ secrets.BILIBILI_CREDENTIALS }}
+        run: |
+          python - <<'PYEOF'
+          import os
+          with open("config/bili_cookies.json", "w", encoding="utf-8") as f:
+              f.write(os.environ["BILIBILI_CREDENTIALS"])
+          PYEOF
+
+      - name: 读取上传状态缓存
+        uses: actions/cache@v4
+        with:
+          path: state/uploaded.json
+          key: uploaded-state-${{ github.run_id }}
+          restore-keys: uploaded-state-
+
+      - name: 运行自动化脚本
+        run: python auto_pipeline.py
+        env:
+          PYTHONIOENCODING: utf-8
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+          DOUYIN_COOKIE: ${{ secrets.DOUYIN_COOKIE }}
+          BILIBILI_CREDENTIALS: ${{ secrets.BILIBILI_CREDENTIALS }}
